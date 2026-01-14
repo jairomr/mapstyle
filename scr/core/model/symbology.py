@@ -219,7 +219,6 @@ class Symbology(BaseModel):
 
         # Desempacotamento
         unpacked = struct.unpack('>B3B B B3B B H B', data)
-
         geom_code, fr, fg, fb, fill_style_code, fill_density, \
             sr, sg, sb, stroke_style_code, stroke_line_int, _ = unpacked
 
@@ -232,15 +231,16 @@ class Symbology(BaseModel):
         # Reconstrução
         return cls(
             symbology_geometry_type=_CODE_TO_GEOMETRY_TYPE[geom_code],
-            symbology_fill_color=Color.from_rgb(fr, fg, fb),
+            symbology_fill_color=Color(f'rgb({fr},{fg},{fb})'),
             symbology_fill_style=_CODE_TO_FILL_STYLE[fill_style_code],
             symbology_fill_density=fill_density,
-            symbology_stroke_color=Color.from_rgb(sr, sg, sb),
+            symbology_stroke_color=Color(f'rgb({sr},{sg},{sb})'),
             symbology_stroke_style=LineStyle.from_code(stroke_style_code),
             symbology_stroke_line=stroke_line_int / 1000.0,
         )
 
-    def _encode_base62(self, data: bytes) -> str:
+    @staticmethod
+    def _encode_base62(data: bytes) -> str:
         """
         Codifica bytes em Base62 (URL-safe, case-sensitive).
 
@@ -269,7 +269,8 @@ class Symbology(BaseModel):
         # Adicionamos padding com zeros à esquerda para 17 caracteres
         return result.rjust(17, '0')
 
-    def _decode_base62(self, encoded: str) -> bytes:
+    @staticmethod
+    def _decode_base62(encoded: str) -> bytes:
         """
         Decodifica string Base62 para bytes.
 
@@ -707,51 +708,3 @@ class Symbology(BaseModel):
         payload["style"]["body"] = sld_content
 
         return payload
-
-
-def _run_tests() -> None:
-    """Suite de testes básicos para validação."""
-    logger.info("Iniciando testes de Symbology com Geoserver")
-
-    # Teste 1: Polígono sólido com borda
-    s1 = Symbology(
-        symbology_geometry_type=SymbologyGeometryType.POLYGON,
-        symbology_fill_color=Color("#ff0000"),
-        symbology_fill_style=SymbologyFill.SOLID,
-        symbology_fill_density=0,
-        symbology_stroke_color=Color("#0000ff"),
-        symbology_stroke_style=LineStyle.DASHED,
-        symbology_stroke_line=2.0,
-    )
-
-    sld1 = s1.to_geoserver_sld("test_polygon")
-    logger.info(f"SLD polígono (primeiras linhas):")
-    for line in sld1.split('\n')[:10]:
-        logger.info(f"  {line}")
-
-    assert "<sld:PolygonSymbolizer>" in sld1
-    assert "#ff0000" in sld1
-    assert "stroke-dasharray" in sld1
-    logger.success("✅ SLD polígono funciona")
-
-    # Teste 2: Polígono com hatch
-    s2 = Symbology(
-        symbology_geometry_type=SymbologyGeometryType.POLYGON,
-        symbology_fill_color=Color("#00ff00"),
-        symbology_fill_style=SymbologyFill.SLASH,
-        symbology_fill_density=3,
-        symbology_stroke_color=Color("#000000"),
-        symbology_stroke_style=LineStyle.NONE,
-        symbology_stroke_line=0.0,
-    )
-
-    sld2 = s2.to_geoserver_sld("test_hatch")
-    logger.info(f"SLD hatch (primeiras linhas):")
-    for line in sld2.split('\n')[:10]:
-        logger.info(f"  {line}")
-
-    assert "GraphicFill" in sld2
-    assert "shape://slash" in sld2
-    logger.success("✅ SLD hatch funciona")
-
-    # Teste 3: Linha

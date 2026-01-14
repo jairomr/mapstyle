@@ -1,10 +1,43 @@
 [project]
 name = "maptemamapbiomas"
 version = "0.1.0"
-description = "Add your description here"
+description = "Geospatial symbology representation and serialization for map styling"
 requires-python = ">=3.13"
 dependencies = [
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
     "pydantic-extra-types>=2.11.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.1",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-v --cov=scr --cov-report=html --cov-report=term-missing --tb=short"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.coverage.run]
+branch = true
+source = ["scr"]
+omit = [
+    "*/tests/*",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+precision = 2
+show_missing = true
