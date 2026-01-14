@@ -114,6 +114,132 @@ async def get_symbology_config(url_key: str) -> ConfigResponse:
 
 
 @router.get(
+    "/result/{url_key}/sld",
+    responses={
+        200: {"description": "SLD XML", "content": {"application/xml": {}}},
+        400: {"model": ErrorResponse},
+    },
+)
+async def get_symbology_sld(url_key: str, layer_name: str = "layer") -> Response:
+    """
+    Obtém SLD (Styled Layer Descriptor) de uma simbologia.
+
+    Retorna XML SLD válido para usar diretamente no GeoServer.
+
+    Args:
+        url_key: Chave de 17 caracteres gerada por create_symbology
+        layer_name: Nome da camada (padrão: "layer")
+
+    Returns:
+        Response: XML SLD
+    """
+    try:
+        symbology = Symbology.from_url_key(url_key)
+
+        logger.debug(f"Generating SLD for url_key: {url_key}, layer: {layer_name}")
+
+        sld_xml = symbology.to_geoserver_sld(layer_name)
+
+        return Response(
+            content=sld_xml,
+            media_type="application/xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    except ValueError as e:
+        logger.warning(f"Invalid url_key: {url_key} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid url_key format: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Error generating SLD: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/result/{url_key}/css",
+    responses={
+        200: {"description": "GeoServer CSS", "content": {"text/css": {}}},
+        400: {"model": ErrorResponse},
+    },
+)
+async def get_symbology_css(url_key: str) -> Response:
+    """
+    Obtém CSS do GeoServer de uma simbologia.
+
+    Retorna CSS válido para usar diretamente no GeoServer.
+
+    Args:
+        url_key: Chave de 17 caracteres gerada por create_symbology
+
+    Returns:
+        Response: CSS string
+    """
+    try:
+        symbology = Symbology.from_url_key(url_key)
+
+        logger.debug(f"Generating CSS for url_key: {url_key}")
+
+        css = symbology.to_geoserver_css()
+
+        return Response(
+            content=css,
+            media_type="text/css",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    except ValueError as e:
+        logger.warning(f"Invalid url_key: {url_key} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid url_key format: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Error generating CSS: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/result/{url_key}/rest",
+    responses={
+        200: {"description": "GeoServer REST payload", "content": {"application/json": {}}},
+        400: {"model": ErrorResponse},
+    },
+)
+async def get_symbology_rest(url_key: str):
+    """
+    Obtém payload da API REST do GeoServer.
+
+    Retorna payload JSON pronto para usar com a API REST do GeoServer.
+
+    Args:
+        url_key: Chave de 17 caracteres gerada por create_symbology
+
+    Returns:
+        JSON payload para POST /geoserver/rest/styles
+    """
+    try:
+        symbology = Symbology.from_url_key(url_key)
+
+        logger.debug(f"Generating REST payload for url_key: {url_key}")
+
+        rest_payload = symbology.to_geoserver_rest_payload()
+
+        return rest_payload
+
+    except ValueError as e:
+        logger.warning(f"Invalid url_key: {url_key} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid url_key format: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Error generating REST payload: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
     "/result/{url_key}/png",
     responses={
         200: {"description": "PNG image", "content": {"image/png": {}}},

@@ -175,6 +175,175 @@ class TestGetConfig:
         assert response.status_code == 400
 
 
+class TestGeoServerSLD:
+    """Testes para endpoint SLD do GeoServer."""
+
+    def test_get_sld_valid_url_key(self, valid_symbology_dict):
+        """Testa GET /api/result/{url_key}/sld."""
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/sld")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/xml"
+        assert response.text.startswith("<?xml")
+        assert "PolygonSymbolizer" in response.text or "Symbolizer>" in response.text
+
+    def test_get_sld_with_layer_name(self, valid_symbology_dict):
+        """Testa GET /api/result/{url_key}/sld?layer_name=custom."""
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/sld?layer_name=my_layer")
+
+        assert response.status_code == 200
+        assert "my_layer" in response.text
+
+    def test_get_sld_invalid_url_key(self):
+        """Testa GET /api/result/{url_key}/sld com url_key inválida."""
+        response = client.get("/api/result/invalid_key/sld")
+
+        assert response.status_code == 400
+
+    def test_get_sld_polygon(self, valid_symbology_dict):
+        """Testa SLD para polígono."""
+        valid_symbology_dict["symbology_geometry_type"] = "POLYGON"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/sld")
+
+        assert response.status_code == 200
+        assert "PolygonSymbolizer" in response.text or "Polygon" in response.text
+
+    def test_get_sld_line(self, valid_symbology_dict):
+        """Testa SLD para linha."""
+        valid_symbology_dict["symbology_geometry_type"] = "LINE"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/sld")
+
+        assert response.status_code == 200
+        assert "LineSymbolizer" in response.text or "Line" in response.text
+
+    def test_get_sld_point(self, valid_symbology_dict):
+        """Testa SLD para ponto."""
+        valid_symbology_dict["symbology_geometry_type"] = "POINT"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/sld")
+
+        assert response.status_code == 200
+        assert "PointSymbolizer" in response.text or "Point" in response.text
+
+
+class TestGeoServerCSS:
+    """Testes para endpoint CSS do GeoServer."""
+
+    def test_get_css_valid_url_key(self, valid_symbology_dict):
+        """Testa GET /api/result/{url_key}/css."""
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/css")
+
+        assert response.status_code == 200
+        assert "text/css" in response.headers["content-type"]
+        assert "* {" in response.text
+        assert "fill:" in response.text or "stroke:" in response.text
+
+    def test_get_css_invalid_url_key(self):
+        """Testa GET /api/result/{url_key}/css com url_key inválida."""
+        response = client.get("/api/result/invalid_key/css")
+
+        assert response.status_code == 400
+
+    def test_get_css_polygon(self, valid_symbology_dict):
+        """Testa CSS para polígono."""
+        valid_symbology_dict["symbology_geometry_type"] = "POLYGON"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/css")
+
+        assert response.status_code == 200
+        assert "fill:" in response.text
+
+    def test_get_css_line(self, valid_symbology_dict):
+        """Testa CSS para linha."""
+        valid_symbology_dict["symbology_geometry_type"] = "LINE"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/css")
+
+        assert response.status_code == 200
+        assert "stroke:" in response.text
+
+    def test_get_css_point(self, valid_symbology_dict):
+        """Testa CSS para ponto."""
+        valid_symbology_dict["symbology_geometry_type"] = "POINT"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/css")
+
+        assert response.status_code == 200
+        assert "mark:" in response.text
+
+
+class TestGeoServerREST:
+    """Testes para endpoint REST do GeoServer."""
+
+    def test_get_rest_valid_url_key(self, valid_symbology_dict):
+        """Testa GET /api/result/{url_key}/rest."""
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/rest")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verifica estrutura do payload REST
+        assert "style" in data
+        assert "name" in data["style"]
+        assert "filename" in data["style"]
+        assert "body" in data["style"]
+
+    def test_get_rest_payload_contains_sld(self, valid_symbology_dict):
+        """Testa que payload REST contém SLD válido."""
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/rest")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["style"]["body"].startswith("<?xml")
+
+    def test_get_rest_invalid_url_key(self):
+        """Testa GET /api/result/{url_key}/rest com url_key inválida."""
+        response = client.get("/api/result/invalid_key/rest")
+
+        assert response.status_code == 400
+
+    def test_get_rest_polygon(self, valid_symbology_dict):
+        """Testa REST payload para polígono."""
+        valid_symbology_dict["symbology_geometry_type"] = "POLYGON"
+        create_response = client.post("/api/symbology", json=valid_symbology_dict)
+        url_key = create_response.json()["url_key"]
+
+        response = client.get(f"/api/result/{url_key}/rest")
+
+        assert response.status_code == 200
+        assert "PolygonSymbolizer" in response.json()["style"]["body"] or \
+               "Polygon" in response.json()["style"]["body"]
+
+
 class TestGetPreview:
     """Testes para obtenção de preview PNG."""
 
