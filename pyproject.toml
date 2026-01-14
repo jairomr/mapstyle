@@ -1,0 +1,10 @@
+[project]
+name = "maptemamapbiomas"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "loguru>=0.7.3",
+    "pydantic>=2.12.5",
+    "pydantic-extra-types>=2.11.0",
+]
