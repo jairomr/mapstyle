@@ -3,6 +3,7 @@ Rotas para API de Symbology.
 
 Define endpoints para criar, consultar e exportar simbologias.
 """
+from typing import Dict, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
@@ -61,7 +62,7 @@ async def create_symbology(symbology_data: SymbologyCreateSchema) -> SymbologyRe
 
 
 @router.get(
-    "/result/{url_key}/json",
+    "/result/{url_key}",
     response_model=ConfigResponse,
     responses={400: {"model": ErrorResponse}},
 )
@@ -111,6 +112,45 @@ async def get_symbology_config(url_key: str) -> ConfigResponse:
     except Exception as e:
         logger.error(f"Error retrieving symbology: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get(
+    "/result/{url_key}/json",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}},
+)
+async def get_symbology_config_matplotlib(url_key: str) -> Dict[str, Any]:
+    """
+    Obtém configurações completas de uma simbologia.
+
+    Retorna configurações para matplotlib, GeoServer e a simbologia completa em JSON.
+
+    Args:
+        url_key: Chave de 17 caracteres gerada por create_symbology
+
+    Returns:
+        ConfigResponse: Contém matplotlib kwargs, GeoServer configs e simbolgia
+    """
+    try:
+        # Descompacta a url_key e reconstrói a simbologia
+        symbology = Symbology.from_url_key(url_key)
+
+        logger.debug(f"Retrieved symbology from url_key: {url_key}")
+
+        # Gera configurações
+        matplotlib_kwargs = symbology.to_matplotlib_patch_kwargs()
+
+        return matplotlib_kwargs
+
+    except ValueError as e:
+        logger.warning(f"Invalid url_key: {url_key} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid url_key format: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving symbology: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get(

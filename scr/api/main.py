@@ -44,13 +44,15 @@ def create_app() -> FastAPI:
         },
     )
 
-    # CORS - Permitir requisições de qualquer origem
+    # CORS - Permitir requisições de qualquer origem (DEBUG)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
+        allow_origins=["*"],  # Aceita de qualquer origem
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=600,
     )
 
     # Health check
@@ -123,7 +125,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "scr.api.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8022,
         reload=True,
         log_level="info",
     )

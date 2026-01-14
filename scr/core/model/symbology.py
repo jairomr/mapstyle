@@ -11,7 +11,7 @@ from typing import Dict, Type, Any, List, Tuple
 from xml.etree import ElementTree as ET
 
 from loguru import logger
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer
 from pydantic_extra_types.color import Color
 
 
@@ -133,6 +133,19 @@ class Symbology(BaseModel):
     def normalize_stroke_line(cls, v: float) -> float:
         """Normaliza espessura da linha para 3 casas decimais."""
         return round(v, 3)
+
+    @model_serializer(mode='wrap', when_used='json')
+    def serialize_model(self, serializer, info):
+        """Serializa enums como seus nomes para JSON."""
+        data = serializer(self)
+        # Converter enums para seus nomes
+        if isinstance(data.get('symbology_fill_style'), (SymbologyFill, Enum)):
+            data['symbology_fill_style'] = data['symbology_fill_style'].name
+        if isinstance(data.get('symbology_stroke_style'), (LineStyle, Enum)):
+            data['symbology_stroke_style'] = data['symbology_stroke_style'].name
+        if isinstance(data.get('symbology_geometry_type'), (SymbologyGeometryType, Enum)):
+            data['symbology_geometry_type'] = data['symbology_geometry_type'].name
+        return data
 
     def cache_key(self) -> tuple:
         """
