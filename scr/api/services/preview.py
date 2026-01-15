@@ -91,6 +91,12 @@ def _render_polygon(ax, kwargs: dict) -> None:
     """Renderiza polígono (retângulo) na figura."""
     # Limpa cores em formato rgb() que matplotlib não suporta
     polygon_kwargs = _clean_kwargs(kwargs)
+
+    # Se edgecolor é 'none', remove o parâmetro para matplotlib não desenhar borda
+    if polygon_kwargs.get('edgecolor') == 'none':
+        polygon_kwargs.pop('edgecolor', None)
+        polygon_kwargs['linewidth'] = 0
+
     rect = Rectangle((0.2, 0.2), 0.6, 0.6, **polygon_kwargs)
     ax.add_patch(rect)
 
@@ -104,7 +110,13 @@ def _render_line(ax, kwargs: dict) -> None:
 
     # Usa edgecolor e linestyle de forma correta
     if "edgecolor" in line_kwargs:
-        line_kwargs["color"] = line_kwargs.pop("edgecolor")
+        color = line_kwargs.pop("edgecolor")
+        # Só desenha linha se color não é 'none'
+        if color != 'none':
+            line_kwargs["color"] = color
+        else:
+            # Sem linha, apenas retorna sem desenhar
+            return
 
     line = Line2D([0.1, 0.9], [0.5, 0.5], **line_kwargs)
     ax.add_line(line)
@@ -123,6 +135,11 @@ def _render_point(ax, kwargs: dict) -> None:
     # Remove parâmetros que não funcionam com Circle
     for key in ["radius", "linestyle", "hatch"]:
         circle_kwargs.pop(key, None)
+
+    # Se edgecolor é 'none', remove o parâmetro para matplotlib não desenhar borda
+    if circle_kwargs.get('edgecolor') == 'none':
+        circle_kwargs.pop('edgecolor', None)
+        circle_kwargs['linewidth'] = 0
 
     circle = Circle((0.5, 0.5), radius, **circle_kwargs)
     ax.add_patch(circle)

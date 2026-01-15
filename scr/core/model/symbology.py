@@ -365,7 +365,23 @@ class Symbology(BaseModel):
         """
         base_kwargs = {}
 
-        # Configuração de preenchimento
+        # Para LINE, ignora preenchimento e usa apenas stroke
+        if self.symbology_geometry_type == SymbologyGeometryType.LINE:
+            base_kwargs['fill'] = False
+            if self.symbology_stroke_style != LineStyle.NONE:
+                base_kwargs.update({
+                    'edgecolor': self.symbology_stroke_color.as_rgb(),
+                    'linewidth': self.symbology_stroke_line,
+                    'linestyle': self.symbology_stroke_style.mpl,
+                })
+            else:
+                base_kwargs.update({
+                    'edgecolor': 'none',
+                    'linewidth': 0,
+                })
+            return base_kwargs
+
+        # Para POLYGON e POINT - configuração de preenchimento
         if self.symbology_fill_style == SymbologyFill.NOBRUSH:
             base_kwargs['fill'] = False
         else:
@@ -384,13 +400,29 @@ class Symbology(BaseModel):
                 if self.symbology_fill_density > 1:
                     base_kwargs['hatch'] = base_kwargs['hatch'] * self.symbology_fill_density
 
-        # Configuração da borda/linha
+        # Configuração da borda/linha para POLYGON e POINT
         if self.symbology_stroke_style != LineStyle.NONE:
-            base_kwargs.update({
-                'edgecolor': self.symbology_stroke_color.as_rgb(),
-                'linewidth': self.symbology_stroke_line,
-                'linestyle': self.symbology_stroke_style.mpl,
-            })
+            # Sempre adicionar linewidth e linestyle
+            base_kwargs['linewidth'] = self.symbology_stroke_line
+            base_kwargs['linestyle'] = self.symbology_stroke_style.mpl
+
+            # Não sobrescrever edgecolor se tem hachura (hachura usa fill_color)
+            if self.symbology_fill_style == SymbologyFill.SOLID or self.symbology_fill_style == SymbologyFill.NOBRUSH:
+                base_kwargs['edgecolor'] = self.symbology_stroke_color.as_rgb()
+        else:
+            # Sem borda - mas se tem hachura, precisa de edgecolor
+            if self.symbology_fill_style != SymbologyFill.SOLID and self.symbology_fill_style != SymbologyFill.NOBRUSH:
+                # Tem hachura - usar fill_color como edgecolor para desenhar a hachura
+                base_kwargs.update({
+                    'edgecolor': self.symbology_fill_color.as_rgb(),
+                    'linewidth': 0,
+                })
+            else:
+                # Sem hachura - sem borda mesmo
+                base_kwargs.update({
+                    'edgecolor': 'none',
+                    'linewidth': 0,
+                })
 
         # Geometria específica
         if self.symbology_geometry_type == SymbologyGeometryType.POLYGON:
