@@ -10,7 +10,7 @@ from matplotlib.patches import Rectangle, Circle
 from matplotlib.lines import Line2D
 from pydantic_extra_types.color import Color
 
-from scr.core.model.symbology import Symbology, SymbologyGeometryType
+from scr.core.model.symbology import Symbology, SymbologyGeometryType, MarkerType
 
 
 def _clean_kwargs(kwargs: dict) -> dict:
@@ -123,23 +123,36 @@ def _render_line(ax, kwargs: dict) -> None:
 
 
 def _render_point(ax, kwargs: dict) -> None:
-    """Renderiza ponto (círculo) na figura."""
-    # Para pontos, usa radius se disponível, senão extrai do linewidth
-    circle_kwargs = _clean_kwargs(kwargs)
+    """Renderiza ponto com diferentes tipos de marcadores."""
+    # Limpa e prepara kwargs para scatter
+    point_kwargs = _clean_kwargs(kwargs)
 
-    if "radius" in circle_kwargs:
-        radius = circle_kwargs.pop("radius")
-    else:
-        radius = max(0.05, circle_kwargs.get("linewidth", 1.0) / 20)
+    # Extrai o tipo de marcador
+    marker = point_kwargs.pop("marker", "o")  # Padrão: círculo
+    markersize = point_kwargs.pop("markersize", 200)
 
-    # Remove parâmetros que não funcionam com Circle
-    for key in ["radius", "linestyle", "hatch"]:
-        circle_kwargs.pop(key, None)
+    # Remove parâmetros que não funcionam com scatter
+    for key in ["radius", "linestyle", "hatch", "fill"]:
+        point_kwargs.pop(key, None)
 
-    # Se edgecolor é 'none', remove o parâmetro para matplotlib não desenhar borda
-    if circle_kwargs.get('edgecolor') == 'none':
-        circle_kwargs.pop('edgecolor', None)
-        circle_kwargs['linewidth'] = 0
+    # Trata edge color para scatter
+    edgecolor = point_kwargs.pop("edgecolor", None)
+    linewidth = point_kwargs.pop("linewidth", 0)
+    facecolor = point_kwargs.pop("facecolor", "C0")
 
-    circle = Circle((0.5, 0.5), radius, **circle_kwargs)
-    ax.add_patch(circle)
+    # Se edgecolor é 'none', não desenha borda
+    if edgecolor == 'none':
+        edgecolor = None
+        linewidth = 0
+
+    # Usa scatter para suportar diferentes tipos de marcadores
+    ax.scatter(
+        [0.5],  # x
+        [0.5],  # y
+        s=markersize,  # tamanho
+        marker=marker,  # tipo de marcador
+        c=[facecolor],  # cor de preenchimento
+        edgecolors=edgecolor,  # cor da borda
+        linewidths=linewidth,  # espessura da borda
+        zorder=10
+    )

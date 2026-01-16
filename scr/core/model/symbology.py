@@ -7,7 +7,7 @@ geoespaciais (polígonos, linhas, pontos) com suporte a cache e URL encoding.
 
 import struct
 from enum import Enum
-from typing import Dict, Type, Any, List, Tuple
+from typing import Dict, Type, Any, List, Tuple, Union
 from xml.etree import ElementTree as ET
 
 from loguru import logger
@@ -71,7 +71,7 @@ _CODE_TO_GEOMETRY_TYPE: Dict[int, SymbologyGeometryType] = {
 
 class SymbologyFill(str, Enum):
     """
-    Padrões de preenchimento para geometrias.
+    Padrões de preenchimento para geometrias (POLYGON, LINE).
 
     Compatível com matplotlib hatch patterns.
     """
@@ -89,7 +89,27 @@ class SymbologyFill(str, Enum):
     STAR = '*'
 
 
-# Mapeamentos para códigos numéricos
+class MarkerType(str, Enum):
+    """
+    Tipos de marcadores para geometria POINT.
+
+    Usados apenas quando geometry_type é POINT.
+    """
+    CIRCLE = "CIRCLE"
+    SQUARE = "SQUARE"
+    TRIANGLE = "TRIANGLE"
+    STAR = "STAR"
+    CROSS = "CROSS"
+    DIAMOND = "DIAMOND"
+    PENTAGON = "PENTAGON"
+    HEXAGON = "HEXAGON"
+    ARROW = "ARROW"
+    VERTICAL_ARROW = "VERTICAL_ARROW"
+    X_MARK = "X_MARK"
+    PLUS_MARK = "PLUS_MARK"
+
+
+# Mapeamentos para códigos numéricos (u16 - 2 bytes)
 _FILL_STYLE_TO_CODE: Dict[SymbologyFill, int] = {
     SymbologyFill.SOLID: 0,
     SymbologyFill.NOBRUSH: 1,
@@ -109,6 +129,26 @@ _CODE_TO_FILL_STYLE: Dict[int, SymbologyFill] = {
     v: k for k, v in _FILL_STYLE_TO_CODE.items()
 }
 
+# Mapeamentos para códigos de marcadores (u16 - 2 bytes)
+_MARKER_TYPE_TO_CODE: Dict[MarkerType, int] = {
+    MarkerType.CIRCLE: 0,
+    MarkerType.SQUARE: 1,
+    MarkerType.TRIANGLE: 2,
+    MarkerType.STAR: 3,
+    MarkerType.CROSS: 4,
+    MarkerType.DIAMOND: 5,
+    MarkerType.PENTAGON: 6,
+    MarkerType.HEXAGON: 7,
+    MarkerType.ARROW: 8,
+    MarkerType.VERTICAL_ARROW: 9,
+    MarkerType.X_MARK: 10,
+    MarkerType.PLUS_MARK: 11,
+}
+
+_CODE_TO_MARKER_TYPE: Dict[int, MarkerType] = {
+    v: k for k, v in _MARKER_TYPE_TO_CODE.items()
+}
+
 
 class Symbology(BaseModel):
     """
@@ -122,7 +162,7 @@ class Symbology(BaseModel):
 
     symbology_geometry_type: SymbologyGeometryType
     symbology_fill_color: Color  # Cor do preenchimento SOLID ou cor do hatch
-    symbology_fill_style: SymbologyFill  # Estilo de preenchimento (SOLID, hatch, etc.)
+    symbology_fill_style: Union[SymbologyFill, MarkerType]  # Para POLYGON/LINE: SymbologyFill; para POINT: MarkerType
     symbology_fill_density: int = Field(ge=0, le=10, description="Densidade do preenchimento (0-10)")
     symbology_stroke_color: Color  # Cor da linha/borda
     symbology_stroke_style: LineStyle  # Estilo da linha/borda
@@ -175,19 +215,25 @@ class Symbology(BaseModel):
         Formato:
         - Tipo geometria: 1 byte (código 0-2)
         - Cor preenchimento: 3 bytes (RGB)
-        - Estilo preenchimento: 1 byte (código 0-11)
+        - Estilo fill/marcador: 2 bytes (u16, código 0-11 para Fill, ou 0-11 para Marker)
         - Densidade: 1 byte (0-10)
         - Cor linha: 3 bytes (RGB)
         - Estilo linha: 1 byte (código 0-10)
         - Espessura linha: 2 bytes (uint16, milésimos de pixel)
-        - Reservado: 1 byte (0 para futuras expansões)
 
-        Total: 1+3+1+1+3+1+2+1 = 13 bytes
+        Total: 1+3+2+1+3+1+2 = 13 bytes
+
+        Nota: Para POINT, usa MarkerType; para outros, usa SymbologyFill
         """
         # Códigos numéricos
         geom_code = _GEOMETRY_TYPE_TO_CODE[self.symbology_geometry_type]
-        fill_style_code = _FILL_STYLE_TO_CODE[self.symbology_fill_style]
         stroke_style_code = self.symbology_stroke_style.code
+
+        # Código do fill style ou marker type
+        if self.symbology_geometry_type == SymbologyGeometryType.POINT:
+            fill_style_code = _MARKER_TYPE_TO_CODE[self.symbology_fill_style]
+        else:
+            fill_style_code = _FILL_STYLE_TO_CODE[self.symbology_fill_style]
 
         # Cores como RGB
         fill_color_rgb = self.symbology_fill_color.as_rgb_tuple()
@@ -196,17 +242,16 @@ class Symbology(BaseModel):
         # Espessura como inteiro (milésimos)
         stroke_line_int = min(int(self.symbology_stroke_line * 1000), 65535)
 
-        # Empacotamento
+        # Empacotamento (agora com u16 para fill_style/marker em vez de u8)
         data = struct.pack(
-            '>B3B B B3B B H B',
+            '>B3BH B3B B H',
             geom_code,                  # 1 byte
             *fill_color_rgb,            # 3 bytes
-            fill_style_code,            # 1 byte
+            fill_style_code,            # 2 bytes (u16)
             self.symbology_fill_density,# 1 byte
             *stroke_color_rgb,          # 3 bytes
             stroke_style_code,          # 1 byte
             stroke_line_int,            # 2 bytes
-            0,                          # 1 byte reservado
         )
 
         return data
@@ -230,10 +275,10 @@ class Symbology(BaseModel):
         if len(data) != 13:
             raise ValueError(f"Dados devem ter 13 bytes, recebidos {len(data)}")
 
-        # Desempacotamento
-        unpacked = struct.unpack('>B3B B B3B B H B', data)
+        # Desempacotamento (novo formato com u16 para fill_style/marker)
+        unpacked = struct.unpack('>B3BH B3B B H', data)
         geom_code, fr, fg, fb, fill_style_code, fill_density, \
-            sr, sg, sb, stroke_style_code, stroke_line_int, _ = unpacked
+            sr, sg, sb, stroke_style_code, stroke_line_int = unpacked
 
         # Validações básicas
         if fill_density > 10:
@@ -241,11 +286,20 @@ class Symbology(BaseModel):
         if stroke_line_int > 50000:  # 50.0 pixels * 1000
             raise ValueError(f"Espessura inválida: {stroke_line_int/1000}")
 
+        # Reconstruir geometry type
+        geom_type = _CODE_TO_GEOMETRY_TYPE[geom_code]
+
+        # Reconstruir fill style conforme o tipo de geometria
+        if geom_type == SymbologyGeometryType.POINT:
+            fill_style = _CODE_TO_MARKER_TYPE[fill_style_code]
+        else:
+            fill_style = _CODE_TO_FILL_STYLE[fill_style_code]
+
         # Reconstrução
         return cls(
-            symbology_geometry_type=_CODE_TO_GEOMETRY_TYPE[geom_code],
+            symbology_geometry_type=geom_type,
             symbology_fill_color=Color(f'rgb({fr},{fg},{fb})'),
-            symbology_fill_style=_CODE_TO_FILL_STYLE[fill_style_code],
+            symbology_fill_style=fill_style,
             symbology_fill_density=fill_density,
             symbology_stroke_color=Color(f'rgb({sr},{sg},{sb})'),
             symbology_stroke_style=LineStyle.from_code(stroke_style_code),
@@ -365,6 +419,25 @@ class Symbology(BaseModel):
         """
         base_kwargs = {}
 
+        # Para POINT, trata separadamente pois fill_style é MarkerType, não SymbologyFill
+        if self.symbology_geometry_type == SymbologyGeometryType.POINT:
+            # Sempre preenchido com fill_color
+            base_kwargs['fill'] = True
+            base_kwargs['facecolor'] = self.symbology_fill_color.as_rgb()
+
+            # Configuração de borda/stroke
+            if self.symbology_stroke_style != LineStyle.NONE:
+                base_kwargs['linewidth'] = self.symbology_stroke_line
+                base_kwargs['linestyle'] = self.symbology_stroke_style.mpl
+                base_kwargs['edgecolor'] = self.symbology_stroke_color.as_rgb()
+            else:
+                base_kwargs['edgecolor'] = 'none'
+                base_kwargs['linewidth'] = 0
+
+            # Adiciona marker e markersize no final (depois de copiar)
+            base_kwargs['_is_point'] = True  # Flag para identificar depois
+            return self._apply_point_marker_kwargs(base_kwargs)
+
         # Para LINE, ignora preenchimento e usa apenas stroke
         if self.symbology_geometry_type == SymbologyGeometryType.LINE:
             base_kwargs['fill'] = False
@@ -438,15 +511,42 @@ class Symbology(BaseModel):
                 del line_kwargs['hatch']
             return line_kwargs
 
-        elif self.symbology_geometry_type == SymbologyGeometryType.POINT:
-            # Para pontos, ajustamos para círculos
-            point_kwargs = base_kwargs.copy()
-            if 'linewidth' in point_kwargs:
-                point_kwargs['radius'] = max(2.0, self.symbology_stroke_line * 2)
-            return point_kwargs
-
         else:
             raise ValueError(f"Tipo de geometria não suportado: {self.symbology_geometry_type}")
+
+    def _apply_point_marker_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Aplica configurações de marker específicas para POINT.
+
+        Separa o processamento para evitar conflito com SymbologyFill vs MarkerType.
+        """
+        kwargs.pop('_is_point', None)  # Remove a flag
+
+        # Define o marker baseado no tipo
+        marker_type: MarkerType = self.symbology_fill_style
+        marker_map = {
+            MarkerType.CIRCLE: 'o',
+            MarkerType.SQUARE: 's',
+            MarkerType.TRIANGLE: '^',
+            MarkerType.STAR: '*',
+            MarkerType.CROSS: 'x',
+            MarkerType.DIAMOND: 'D',
+            MarkerType.PENTAGON: 'p',
+            MarkerType.HEXAGON: 'H',
+            MarkerType.ARROW: '→',
+            MarkerType.VERTICAL_ARROW: '↑',
+            MarkerType.X_MARK: 'X',
+            MarkerType.PLUS_MARK: '+',
+        }
+
+        kwargs['marker'] = marker_map.get(marker_type, 'o')
+
+        # Define o tamanho do marcador baseado em fill_density (0-10)
+        # Mapeamos 0-10 para tamanho de scatter (s=50 a s=500)
+        markersize = max(50, min(500, int((self.symbology_fill_density + 1) * 45)))
+        kwargs['markersize'] = markersize
+
+        return kwargs
 
     def to_geoserver_sld(self, layer_name: str = "layer") -> str:
         """
@@ -595,16 +695,38 @@ class Symbology(BaseModel):
         point_symbolizer = ET.SubElement(rule, '{http://www.opengis.net/sld}PointSymbolizer')
         graphic = ET.SubElement(point_symbolizer, '{http://www.opengis.net/sld}Graphic')
 
-        # Define o marcador
+        # Define o marcador baseado no tipo
         mark = ET.SubElement(graphic, '{http://www.opengis.net/sld}Mark')
-        ET.SubElement(mark, '{http://www.opengis.net/sld}WellKnownName').text = 'circle'
+
+        # Mapeia MarkerType para WellKnownName do Geoserver
+        marker_type: MarkerType = self.symbology_fill_style
+        marker_to_wkn = {
+            MarkerType.CIRCLE: 'circle',
+            MarkerType.SQUARE: 'square',
+            MarkerType.TRIANGLE: 'triangle',
+            MarkerType.STAR: 'star',
+            MarkerType.CROSS: 'cross',
+            MarkerType.DIAMOND: 'diamond',
+            MarkerType.PENTAGON: 'pentagon',
+            MarkerType.HEXAGON: 'hexagon',
+            MarkerType.ARROW: 'shape://arrowhead',
+            MarkerType.VERTICAL_ARROW: 'shape://arrowhead_up',
+            MarkerType.X_MARK: 'shape://times',
+            MarkerType.PLUS_MARK: 'shape://plus',
+        }
+
+        wkn = marker_to_wkn.get(marker_type, 'circle')
+        ET.SubElement(mark, '{http://www.opengis.net/sld}WellKnownName').text = wkn
 
         # Preenchimento do marcador
         fill = ET.SubElement(mark, '{http://www.opengis.net/sld}Fill')
-        if self.symbology_fill_style == SymbologyFill.NOBRUSH:
-            ET.SubElement(fill, '{http://www.opengis.net/sld}CssParameter', {'name': 'fill'}).text = '#000000'
-            ET.SubElement(fill, '{http://www.opengis.net/sld}CssParameter', {'name': 'fill-opacity'}).text = '0'
+        if marker_type == MarkerType.CIRCLE:
+            # Para círculos, usa fill_style para determinar preenchimento
+            fill_hex = self.symbology_fill_color.as_hex()
+            ET.SubElement(fill, '{http://www.opengis.net/sld}CssParameter', {'name': 'fill'}).text = fill_hex
+            ET.SubElement(fill, '{http://www.opengis.net/sld}CssParameter', {'name': 'fill-opacity'}).text = '1'
         else:
+            # Outros marcadores sempre preenchidos com a cor definida
             fill_hex = self.symbology_fill_color.as_hex()
             ET.SubElement(fill, '{http://www.opengis.net/sld}CssParameter', {'name': 'fill'}).text = fill_hex
             ET.SubElement(fill, '{http://www.opengis.net/sld}CssParameter', {'name': 'fill-opacity'}).text = '1'
@@ -691,16 +813,29 @@ class Symbology(BaseModel):
         elif self.symbology_geometry_type == SymbologyGeometryType.POINT:
             css_lines.append("* {")
 
-            # Define o marcador
-            css_lines.append("  mark: symbol(circle);")
+            # Define o marcador baseado no tipo
+            marker_type: MarkerType = self.symbology_fill_style
+            marker_to_css = {
+                MarkerType.CIRCLE: 'symbol(circle)',
+                MarkerType.SQUARE: 'symbol(square)',
+                MarkerType.TRIANGLE: 'symbol(triangle)',
+                MarkerType.STAR: 'symbol(star)',
+                MarkerType.CROSS: 'symbol(cross)',
+                MarkerType.DIAMOND: 'symbol(diamond)',
+                MarkerType.PENTAGON: 'symbol(pentagon)',
+                MarkerType.HEXAGON: 'symbol(hexagon)',
+                MarkerType.ARROW: "symbol('shape://arrowhead')",
+                MarkerType.VERTICAL_ARROW: "symbol('shape://arrowhead_up')",
+                MarkerType.X_MARK: "symbol('shape://times')",
+                MarkerType.PLUS_MARK: "symbol('shape://plus')",
+            }
+
+            mark_symbol = marker_to_css.get(marker_type, 'symbol(circle)')
+            css_lines.append(f"  mark: {mark_symbol};")
 
             # Preenchimento
-            if self.symbology_fill_style == SymbologyFill.NOBRUSH:
-                css_lines.append("  mark-fill: #000000;")
-                css_lines.append("  mark-fill-opacity: 0;")
-            else:
-                css_lines.append("  mark-fill: " + self.symbology_fill_color.as_hex() + ";")
-                css_lines.append("  mark-fill-opacity: 1;")
+            css_lines.append("  mark-fill: " + self.symbology_fill_color.as_hex() + ";")
+            css_lines.append("  mark-fill-opacity: 1;")
 
             # Borda
             if self.symbology_stroke_style != LineStyle.NONE:

@@ -10,6 +10,7 @@ from scr.core.model.symbology import (
     Symbology,
     SymbologyGeometryType,
     SymbologyFill,
+    MarkerType,
     LineStyle,
 )
 from pydantic_extra_types.color import Color
@@ -24,11 +25,11 @@ class SymbologyCreateSchema(BaseModel):
 
     symbology_geometry_type: str  # "POLYGON", "LINE", "POINT"
     symbology_fill_color: str  # Aceita hex, rgb, nomes
-    symbology_fill_style: str  # SOLID, NOBRUSH, SLASH, BACKSLASH, etc
-    symbology_fill_density: int
+    symbology_fill_style: str  # Para POINT: CIRCLE, SQUARE, TRIANGLE, STAR, etc. Para outros: SOLID, NOBRUSH, SLASH, BACKSLASH, etc
+    symbology_fill_density: int  # 0-10. Para POLYGON/LINE: densidade de hachura. Para POINT: tamanho do marcador
     symbology_stroke_color: str  # Aceita hex, rgb, nomes
     symbology_stroke_style: str  # SOLID, DASHED, DOTTED, etc
-    symbology_stroke_line: float
+    symbology_stroke_line: float  # Espessura em pixels (0-50). Para POINT: espessura da borda do marcador
 
     @field_validator("symbology_geometry_type", mode="after")
     @classmethod
@@ -43,13 +44,18 @@ class SymbologyCreateSchema(BaseModel):
 
     @field_validator("symbology_fill_style", mode="after")
     @classmethod
-    def validate_fill_style(cls, v):
-        """Valida e converte fill style."""
+    def validate_fill_style(cls, v, info):
+        """Valida e converte fill style ou marker type conforme geometry type."""
         if isinstance(v, str):
+            # Tenta primeiro como SymbologyFill
             try:
                 return SymbologyFill[v]
             except KeyError:
-                raise ValueError(f"Invalid fill style: {v}")
+                # Se falhar, tenta como MarkerType
+                try:
+                    return MarkerType[v]
+                except KeyError:
+                    raise ValueError(f"Invalid fill style or marker type: {v}")
         return v
 
     @field_validator("symbology_stroke_style", mode="after")

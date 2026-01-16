@@ -38,6 +38,8 @@ async def create_symbology(symbology_data: SymbologyCreateSchema) -> SymbologyRe
         SymbologyResponse: Contém url_key (chave compacta) e URLs para recursos
     """
     try:
+        logger.debug(f"Received symbology data: {symbology_data}")
+
         # Converte schema para Symbology object
         symbology = symbology_data.to_symbology()
 
@@ -57,7 +59,7 @@ async def create_symbology(symbology_data: SymbologyCreateSchema) -> SymbologyRe
         )
 
     except Exception as e:
-        logger.error(f"Error creating symbology: {e}")
+        logger.error(f"Error creating symbology: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 
