@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentação
+*.md
+docs/
+
+# Testing
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+
+# Environment
+.env
+.env.local
+.env.*.local
+.venv/
+env/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+*.log
+
+# Node/Frontend
+node_modules/
+.npm/
+frontend/node_modules/
+
+# Docker compose dev files
+docker-compose.dev.yml
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Lock files (if using different lock strategy)
+yarn.lock

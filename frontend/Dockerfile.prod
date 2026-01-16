@@ -1,0 +1,15 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm ci
+
+COPY . .
+
+RUN npm run build
+
+# Files are copied to nginx in docker-compose via volume
+FROM alpine:latest
+RUN echo "Frontend built successfully"

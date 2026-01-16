@@ -5,14 +5,12 @@ import {
   ConfigResponse,
 } from '../types/symbology';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
 class SymbologyAPI {
   private client: AxiosInstance;
 
-  constructor(baseURL: string = API_BASE_URL) {
+  constructor() {
     this.client = axios.create({
-      baseURL,
+      baseURL: '/',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -53,7 +51,7 @@ class SymbologyAPI {
    * GET /api/result/{url_key}/png?size={size}
    */
   getPreviewUrl(urlKey: string, size: number = 200): string {
-    return `${API_BASE_URL}/api/result/${urlKey}/png?size=${size}`;
+    return `/api/result/${urlKey}/png?size=${size}`;
   }
 
   /**
@@ -61,7 +59,7 @@ class SymbologyAPI {
    * GET /api/result/{url_key}/sld?layer_name={layer_name}
    */
   getSldUrl(urlKey: string, layerName: string = 'layer'): string {
-    return `${API_BASE_URL}/api/result/${urlKey}/sld?layer_name=${layerName}`;
+    return `/api/result/${urlKey}/sld?layer_name=${layerName}`;
   }
 
   /**
@@ -69,7 +67,7 @@ class SymbologyAPI {
    * GET /api/result/{url_key}/css
    */
   getCssUrl(urlKey: string): string {
-    return `${API_BASE_URL}/api/result/${urlKey}/css`;
+    return `/api/result/${urlKey}/css`;
   }
 
   /**
@@ -77,7 +75,7 @@ class SymbologyAPI {
    * GET /api/result/{url_key}/rest
    */
   getRestUrl(urlKey: string): string {
-    return `${API_BASE_URL}/api/result/${urlKey}/rest`;
+    return `/api/result/${urlKey}/rest`;
   }
 
   /**
