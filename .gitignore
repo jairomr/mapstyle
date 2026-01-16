@@ -61,7 +61,7 @@ npm-debug.log*
 Thumbs.db
 
 # Docker
-docker-compose.dev.yml
+
 .dockerignore
 
 # Project specific
